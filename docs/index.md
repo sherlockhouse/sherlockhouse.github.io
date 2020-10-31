@@ -1,7 +1,7 @@
-# Gallery Developer Docs
+# 相册开发文档
 
 
-## Project layout
+## 目录结构
 
     app/         # 主应用
         com.
@@ -26,3 +26,29 @@
     # network 网络相关的库,项目中没有用到,保留
     Network/
     NetworkLite/
+
+
+
+
+## 功能模块
+
+* 界面导航
+   >采用谷歌导航组件 + ViewPager2 https://developer.android.com/guide/navigation
+   >来处理界面间的跳转.数据的异步加载结合RxJava
+
+* 缩略图解码 
+  >使用谷歌的Glide
+
+* 图片高清预览
+  >开源项目   subsampling-scale-image-view
+  >https://github.com/davemorrissey/subsampling-scale-image-view
+
+* 智能分类
+  > tensorflowlite. 使用谷歌开源的预训练模型,模型文件在asset目录,项目相关目录
+  > app/src/main/java/com/android/gallery3d/discover
+* 编辑
+  > 原生的编辑功能,目录 /app/src/main/java/com/android/gallery3d/filtershow/
+  > 修改了知乎开源的matisse 图片选择模块
+
+
+## 详细
