@@ -31,13 +31,13 @@
 
 
 
-![android architecture](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_mvvm_app.png)
+
 
 
 ## 二 . 功能模块
 
 * 界面导航
-   
+  
    >采用ViewPager2 + Recyclerview + Fragment 代替原生OpenGL实现
    
 * 缩略图解码
@@ -49,6 +49,7 @@
   >subsampling-scale-image-view。只支持jpg和png
   
 * 智能分类
+  
   > tensorflowlite. 使用谷歌开源的预训练模型,模型文件在asset目录
 * 编辑
   > 原生的编辑功能,目录 /app/src/main/java/com/android/gallery3d/filtershow/
@@ -166,74 +167,78 @@ class MediaDataManager @Inject constructor() {
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
-<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/nav_graph_albumset"
-    app:startDestination="@id/AlbumSetFragment">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
 
-    <fragment
-        android:id="@+id/AlbumSetFragment"
-        android:name="com.arch.gallery.fragments.albums.AlbumSetFragment"
-        android:label="@string/tab_photos"
-        tools:layout="@layout/fragment_albumset">
 
-        <action
-            android:id="@+id/action_AlbumSetFragment_to_AlbumFragment"
-            app:destination="@id/AlbumFragment" />
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?android:actionBarSize" />
 
-    </fragment>
 
-    <fragment
-        android:id="@+id/AlbumFragment"
-        android:name="com.arch.gallery.fragments.albums.AlbumFragment"
-        android:label="Album"
-        tools:layout="@layout/fragment_album">
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/main_view_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
-        <action
-            android:id="@+id/action_AlbumFragment_to_AlbumSetFragment"
-            app:destination="@id/AlbumSetFragment" />
-        <argument
-            android:name="album"
-            app:argType="com.arch.gallerybase.data.Album" />
-    </fragment>
 
-</navigation>
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:menu="@menu/bottom_navigation_menu" />
+
+</LinearLayout>
 
 ```
 
-上诉xml文件中定义了导航关系,通过action 指定导航的目的地,这个可以直接从android studio里可视化的设置.
 
-https://developer.android.com/guide/navigation/navigation-navigate
 
 ```java
- // 在AlbumsetFragment中调用,就可以跳转到AlbumFragment
-        NavHostFragment.findNavController(this)
-                .navigate(AlbumSetFragmentDirections.Companion
-                        .actionAlbumSetFragmentToAlbumFragment(adapter.get(position)));
-```
+ override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(binding.root)
+        setSupportActionBar(binding.toolbar)
 
-https://developer.android.com/guide/navigation/navigation-custom-back#java
-返回参考上述链接,按如下代码设置,不然会被activity拦截back按键
-```java
-//从AlbumFragment返回
- @Override
-    public void onAttach(Context context) {
-        super.onAttach(context);
-        setHasOptionsMenu(true);
-        callback = new OnBackPressedCallback(true /* enabled by default */) {
-            @Override
-            public void handleOnBackPressed() {
-                // Handle the back button event
-                if (!isAdded()) {
-                    return;
+        binding.mainViewPager.isUserInputEnabled = false
+        binding.mainViewPager.offscreenPageLimit = 3
+
+
+        val config = mutableListOf<Pair<Int, Supplier<out Fragment>>>()
+        binding.bottomNav.menu.forEachIndexed { index, item ->
+            config.add(when (item.itemId) {
+                R.id.timeline -> R.string.tab_photos to Supplier {
+                    TimeLineFragment()
                 }
-                findNavController(requireActivity(), R.id.nav_host_fragment_albumset).popBackStack();
-            }
-        };
-        requireActivity().getOnBackPressedDispatcher().addCallback(this, callback);
+                R.id.search -> R.string.menu_search to Supplier {
+                    SearchFragment()
+                }
+                R.id.mediaSet -> R.string.tab_albums to Supplier {
+                    MediaSetFragment()
+                }
+                else -> R.string.tab_photos to Supplier {
+                    TimeLineFragment()
+                }
+            })
+        }
+        binding.bottomNav.setupWithViewPager2(
+            binding.mainViewPager,
+            supportFragmentManager,
+            lifecycle,
+            config
+        )
+        binding.toolbar.setupWithViewPager2(binding.mainViewPager, config)
     }
+
+
 ```
+
+
 
 
 ### 5. 媒体单张预览
@@ -257,4 +262,13 @@ https://developer.android.com/guide/navigation/navigation-custom-back#java
 * VideoFragment 用于视频预览,目前相册未内置视频播放，跳转到外部视频播放
 * FastImageFragment 除上述类型外的其他类型,以及未知类型的预览, 采用imagezoom进行预览
 
+
+
 ## 四 . 关于领域层 Domain Layer
+
+![android architecture](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_mvvm_app.png)
+
+
+
+https://fernandocejas.com/blog/engineering/2021-01-23-writing-first-class-features-bdd-gherkin/
+
