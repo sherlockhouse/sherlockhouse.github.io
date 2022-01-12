@@ -8,6 +8,7 @@
 
 # 相册开发文档
  链接 https://sherlockhouse.github.io/
+<img src="http://static.runoob.com/images/runoob-logo.png" width="50%">
 
 ##  一 . 目录结构
 
@@ -26,8 +27,7 @@
     
     google/      # 原生平台可复用的代码
     matisse/     # 知乎开源的图片选择库
-
-![ff](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_layers.png)
+<img src="https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_layers.png" width="50%">
 
 
 
@@ -265,8 +265,8 @@ class MediaDataManager @Inject constructor() {
 
 
 ## 四 . 关于领域层 Domain Layer
+<img src="https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_mvvm_app.png" width="50%">
 
-![android architecture](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_mvvm_app.png)
 
 
 
