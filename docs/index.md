@@ -4,7 +4,7 @@
 
 | 版本 | 修改日期 | 作者 | 修改内容 |
 |--------|--------|--------|--------|
-| V1.0| 2020.10.31 | 顾林成 | 创建 |
+| V1.0| 2022.01.12 | 顾林成 | 创建 |
 
 # 相册开发文档
  链接 https://sherlockhouse.github.io/
@@ -12,47 +12,44 @@
 ##  一 . 目录结构
 
     app/
-    ├── assets                # tensorflow lite 模型文件等
+    ├── assets               # tensorflow lite 模型文件等
     ├── java
-    │   └── com
-    │       ├── android       # 谷歌原生的相册代码
-    │       ├── arch          #相册通用的框架代码
-    │       ├── cmcc          # 由于需要修改包名,部分代码必须放到包名同名目录
-    │       └── mediatek      # MTK 原生相册代码目录
-    └── rs                    #MTK 原生的图片编辑库
-
-    base/        # 项目通用的基础框架
-    imageZoom/   # github开源的图片查看放大库
+    │   └── core             #主要的抽象框架
+    │   ├── customview       #自定义view
+    │   ├── db               #自定义数据库
+    │   ├── di               #全局依赖注入
+    │   ├── domain           #领域
+    │   ├── models           #MVVM - model
+    │   ├── repository       #repository pattern 
+    │   ├── ui               #MVVM - view & viewmodel
+    │   └── utils            #工具类和扩展函数
+    
+    google/      # 原生平台可复用的代码
     matisse/     # 知乎开源的图片选择库
-    mtkgallery2/ # mtk平台原生的资源文件
+
+![ff](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_layers.png)
 
 
 
-
-    # network 网络相关的库,项目中没有用到,保留
-    Network/
-    NetworkLite/
-
-
+![android architecture](https://fernandocejas.com/assets/img/blog/android_architecture_reloaded_mvvm_app.png)
 
 
 ## 二 . 功能模块
 
 * 界面导航
-   >采用谷歌导航组件 + ViewPager2 https://developer.android.com/guide/navigation
-   >来处理界面间的跳转.数据的异步加载结合RxJava
-
+   
+   >采用ViewPager2 + Recyclerview + Fragment 代替原生OpenGL实现
+   
 * 缩略图解码
-
+  
   >使用谷歌的Glide
-
+  
 * 图片高清预览
-  >开源项目   subsampling-scale-image-view
-  >https://github.com/davemorrissey/subsampling-scale-image-view
-
+  
+  >subsampling-scale-image-view。只支持jpg和png
+  
 * 智能分类
-  > tensorflowlite. 使用谷歌开源的预训练模型,模型文件在asset目录,项目相关目录
-  > app/src/main/java/com/android/gallery3d/discover
+  > tensorflowlite. 使用谷歌开源的预训练模型,模型文件在asset目录
 * 编辑
   > 原生的编辑功能,目录 /app/src/main/java/com/android/gallery3d/filtershow/
   > 修改了知乎开源的matisse 图片选择模块
@@ -62,106 +59,110 @@
 ##  三 . 详细设计
 
 ### 1. 主题
-在Android.manifest中,配置. 配置后,当前activity会应用系统样式.同时自定义样式失效.
+在Android.manifest中,配置. 配置后,当前activity会应用系统样式.同时自定义样式失效，无法使用compat和material主题.
+
+因此只用于非重要的activity。主activity控件主题效果完全自己控制。
 
 ```xml
-            <meta-data
-                android:name="com.cmcc.app.theme"
-                android:value="cmcc:style/Theme.Cmcc.Light" />
+   <meta-data
+     android:name="com.freeme.app.theme"
+     android:value="freeme:style/Theme.Freeme.NoActionBar.DayNight" />
 ```
 ### 2. 媒体数据结构
 
-图库数据主要包括相册目录和照片
+图库数据主要包括相册目录和媒体文件
 ```java
-//单张照片
-public class MediaItem implements TimelineItem, CursorHandler, Parcelable {
-    private String path = null;
-    private String title = null;
-    private long dateModified = -1;
-    private String mimeType = MimeTypeUtils.UNKNOWN_MIME_TYPE;
-    private int orientation = 0;
-    private int id;
-    private int bucketid;
-    public double latitude = INVALID_LATLNG;
-    public double longitude = INVALID_LATLNG;
-    public int width;
-    public int height;
-    public int mFileFlag;
-    public long mJpegSize = 0;
-
-    private String uriString = null;
-    private String photoPreviewUri = null;
-}
+//单个照片
+data class DetailMediaFile(
+    var id: Long,
+    var name: String?,
+    var dateAdded: Long?,
+    var dateTaken: Long?,
+    var dateModified: Long?,
+    val uri: Uri,
+    var path: String?,
+    var parentPath: String?,
+    var size: Long?,
+    var type: Int?,
+    var videoDuration: Int?,
+    var isFavorite: Boolean = false,
+    var deletedTS: Long?,
+    var bucketId: Long?,
+)
 
 //相片目录
-public class Album implements CursorHandler, Parcelable {
-
-    public static final long ALL_MEDIA_ALBUM_ID = 8000;
-    private String name, path;
-    private long id = -1, dateModified;
-    private int count = -1;
-    private String onlinePath;
-
-    private boolean selected = false;
-    public AlbumSettings settings = null;
-    private MediaItem lastMediaItem = null;
-}
+data class DetailMediaSet(
+    val name: String,
+    val id: Int,
+    val dateAdded: Long,
+    val dateTaken: Long,
+    val uri: Uri,
+    var count: Int,
+    var order: Int,
+)
 ```
-数据对象继承 CursorHandler,由CPHelper类从系统媒体库中获取照片数据信息.
+数据对象实现BaseListMediaFileItem接口，用于在recyclerview中配置不同的viewholder，以及使用DiffUtil
 
 ```java
-public class CPHelper {
-
-    private static Observable<Album> getAlbums(Context context, ArrayList<String> excludedAlbums, SortingMode sortingMode, SortingOrder sortingOrder) {
-        //.....
-    }
-
-    public static Observable<MediaItem> getMedia(Context context, Album album) {
-
-        if (album.getId() == -1) {
-            return getMediaFromStorage(context, album);
-        } else if (album.getId() == Album.ALL_MEDIA_ALBUM_ID) {
-            return getAllMediaFromMediaStore(context, album.settings.getSortingMode(), album.settings.getSortingOrder());
-        } else {
-            return getMediaFromMediaStore(context, album, album.settings.getSortingMode(), album.settings.getSortingOrder());
+open class BaseListMediaFileItem(val viewType: Int) {
+    fun isSame(other: BaseListMediaFileItem): Boolean {
+        if (this is MediaFileItem && other is MediaFileItem) {
+            return this.detailMedia.uri == other.detailMedia.uri
+        } else if (this is MediaFileHeaderItem && other is MediaFileHeaderItem) {
+            return this.text == other.text
         }
+        return false
     }
 
+    var gridPosition: Int = 0
+
+    enum class Type {
+        HEADER,
+        DATA
+    }
+
+    data class MediaFileHeaderItem(val text:String) : BaseListMediaFileItem(Type.HEADER.ordinal)
 }
 
 ```
-### 3. 数据库
+### 3. 全局数据管理对象
 
-智能分类功能,"discover.db", 用于存储分类信息.
+```
+MediaDataManager为全局单例。因为相册对应的多个界面，包括fragment和activity，其核心数据都是mediastore中取出的媒体对象。因此需要一个全局管理mediadata的对象，避免反复查询mediastore，和互相传递。
+```
 
 ```java
-public class DiscoverHelper extends SQLiteOpenHelper {
-    private static final String DB_NAME = "discover.db";
-    private static final int DB_VERSION = 1;
+class MediaDataManager @Inject constructor() {
 
-    @Override
-    public void onCreate(SQLiteDatabase db) {
-        String thing = "CREATE TABLE IF NOT EXISTS " + DiscoverStore.Things.Media.TABLE_NAME
-                + "("
-                + DiscoverStore.Things.Columns._ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
-                + DiscoverStore.Things.Columns.IMAGE_ID + " INTEGER,"
-                + DiscoverStore.Things.Columns.CLASSIFICATION + " INTEGER DEFAULT -2"
-                + ")";
-     }
+    // 媒体文件对象
+    private val _mediaFilesLocal: MutableLiveData<List<MediaFileLocal>> =
+        MutableLiveData(emptyList())
+    val mediaFilesLocal: LiveData<List<MediaFileLocal>> get() = _mediaFilesLocal
+
+    fun loadImage(medias : List<MediaFileLocal>) {
+        _mediaFilesLocal.postValue(medias)
+    }
+    
+	//图集对象
+    val _HashMapMedias: MutableLiveData<WeakHashMap<String, ArrayList<BaseListMediaFileItem>>> = MutableLiveData(WeakHashMap())
+
+
 }
 ```
 
-表thing 用于记录智能分类后的相册数据,
 
-```java
-DiscoverStore.Things.Columns._ID  : 唯一ID
-DiscoverStore.Things.Columns.IMAGE_ID : 对应系统媒体数据库中的 ID,用于查找对应图片
-DiscoverStore.Things.Columns.CLASSIFICATION : 分类ID,由于归类
-```
 
 
 ### 4. 界面导航
-采用谷歌导航组件, 以nav_graph_albumset.xml为例
+主界面采用viewpager2.
+
+相册主界面为复杂界面，而且数据量大，需要实时更新。所以采用viewpager2进行缓存。
+
+采用了viewpager2后对navigation 导航组件就不太友好。因此主界面不再使用导航组件。
+
+导航组件可用于其他非主要界面，比如设置等。
+
+因为搜索也是复杂界面，需要频繁调用。因此也要作为一页page，来利用viewpager的缓存特性。但目前的UI没有搜索tab。
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -235,36 +236,25 @@ https://developer.android.com/guide/navigation/navigation-custom-back#java
 ```
 
 
-### 5. 照片单张预览
-照片单张预览入口为SingleMediaActivity.java
+### 5. 媒体单张预览
+照片单张预览入口为MediaPagerActivity.java
 
-通过 MediaPagerAdapter 按照照片类型进入对应的预览fragment
+通过 MediaPagerAdapter按照照片类型进入对应的预览fragment
 ```java
-    private MediaPagerAdapter adapter;
 
-    @Override
-    public Fragment createFragment(int position) {
-        MediaItem mediaItem = this.mediaItems.get(position);
-        if (mediaItem.getMimeType() == null) {
-            return FastImageFragment.newInstance(mediaItem);
-        }
-
-        if (mediaItem.getMimeType().equals(MediaItem.MIME_TYPE_JPEG) ||
-                mediaItem.getMimeType().equals(MediaItem.MIME_TYPE_PNG)) {
-            return ImageFragment.newInstance(mediaItem);
-        }
-        if (mediaItem.isVideo()) {
-            return VideoFragment.newInstance(mediaItem);
-        } else if (mediaItem.isGif()) {
-            return GifFragment.newInstance(mediaItem);
-        } else  {
-            return FastImageFragment.newInstance(mediaItem);
+    override fun createFragment(position: Int): Fragment {
+        when(mediaFiles[position].detailMedia.name) {
+            "jpg/png" -> return ImageFragment.newInstance(position)
+            "video" -> return VideoFragment.newInstance(position)
+            "gif" -> return GifFragment.newInstance(position)
+            else -> return FastImageFragment.newInstance(position)
         }
     }
 ```
 
-* ImageFragment 只能用于jpeg和png 的预览,采用imagesapling scale进行解码预览
+* ImageFragment 采用imagesapling scale进行解码预览
 * GifFragment 用于gif预览,采用glide解码
-* VideoFragment 用于视频预览,相册未内置视频播放
+* VideoFragment 用于视频预览,目前相册未内置视频播放，跳转到外部视频播放
 * FastImageFragment 除上述类型外的其他类型,以及未知类型的预览, 采用imagezoom进行预览
 
+## 四 . 关于领域层 Domain Layer
